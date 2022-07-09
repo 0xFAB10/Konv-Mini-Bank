@@ -34,18 +34,17 @@ def Write_Database_Clientes(cpf, info, valor, saldo):
         print('Database error', e)
 
 
-def Check_CPF(cpf):
-    cpf = ''.join(c for c in cpf if c.isnumeric())
-    cpf_padrao = f'{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}'
+def Check_CPF(cpf_original):
+    cpf = cpf_original.replace('.', '').replace('-', '')
     if len(cpf) == 11:
         # Funções geradoras de código verificador
         V1 = lambda x : sum([int(d)*i for d,i in zip(x, range(10,1,-1))]) % 11
         V2 = lambda x : str(11 - x) if x > 1 else str(x)
         verificador_gerado = V2(V1(cpf[:9])) + V2(V1(cpf[1:10]))
-        _, verificador_cpf = cpf_padrao.split('-')
+        verificador_cpf = cpf[9:]
         if verificador_gerado == verificador_cpf:
             return True, cpf
-    return False
+    return False, cpf_original
 
 
 def Criar_Cliente(cpf):
