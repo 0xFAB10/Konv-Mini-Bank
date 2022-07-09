@@ -35,7 +35,7 @@ def Write_Database_Clientes(cpf, info, valor, saldo):
 
 
 def Check_CPF(cpf_original):
-    cpf = cpf_original.replace('.', '').replace('-', '')
+    cpf = cpf_original.replace('.', '').replace('-', '').replace(' ', '')
     if len(cpf) == 11:
         # Funções geradoras de código verificador
         V1 = lambda x : sum([int(d)*i for d,i in zip(x, range(10,1,-1))]) % 11
