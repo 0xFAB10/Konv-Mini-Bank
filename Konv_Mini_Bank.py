@@ -1,3 +1,15 @@
+def Format_Valor(valor):
+    # Retorna valor formatado para exibição ou armazenamento
+    if ',' in str(valor):
+        valor_format, centavos = valor.split(',')
+    else:
+        valor_format, centavos = str(valor), '00'
+    valor_format = valor_format.replace('.', '')
+    n = len(valor_format)//3 if len(valor_format)%3 else (len(valor_format)//3)-1
+    for i in range(1,n+1):
+        valor_format = f'{valor_format[:(-3*i)-(i-1)]}.{valor_format[(-3*i)-(i-1):]}'
+    return f'R$ {valor_format},{centavos}'
+
 def Read_Database_Notas():
     with open('notas_caixa.bin', mode='r')  as FILE:
         dct_notas = dict(i.replace('\n', '').split(' : ') for i in FILE.readlines())
@@ -29,14 +41,17 @@ def Write_Database_Clientes(cpf, info, valor, saldo):
     data_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
     try:
         with open(join('clientes',cpf+'.bin'), mode='a') as FILE:
-            FILE.write(f'{data_hora} : {info} : R$ {valor},00 : R$ {saldo},00\n')
+            FILE.write(f'{data_hora} : {info} : {Format_Valor(valor)} : {Format_Valor(saldo)}\n')
     except Exception as e:
         print('Database error', e)
 
 
 def Check_CPF(cpf_original):
-    cpf = cpf_original.replace('.', '').replace('-', '').replace(' ', '')
-    if len(cpf) == 11:
+    cpf = cpf_original.replace('.', ' ').replace('-', ' ')
+    cpf = cpf.split(' ')
+    # Checa se o CPF obedece o padrão xxx.xxx.xxx-xx ou padrão numérico.
+    if '-'.join([str(len(c)) for c in cpf]) in ['3-3-3-2', '11']:
+        cpf = ''.join(cpf)
         # Funções geradoras de código verificador
         V1 = lambda x : sum([int(d)*i for d,i in zip(x, range(10,1,-1))]) % 11
         V2 = lambda x : str(11 - x) if x > 1 else str(x)
@@ -101,12 +116,10 @@ def Check_Saque(valor):
         if soma == 0:
             mensagem = 'Caixa vazio no momento.'
         elif soma < int(valor):
-            mensagem = f'Por favor, escolha um valor menor ou igual a R$ {soma},00.'
+            mensagem = f'Por favor, escolha um valor menor ou igual a {Format_Valor(soma)}.'
         else:
-            minimo = min([i[0] for i in dct_notas.items() if int(i[1]) > 0])
-            mensagem = f'Por favor, escolha um valor múltiplo de {minimo} e menor ou igual a R$ {soma},00.'
-            if int(valor)-resto > 0:
-                mensagem += f'Aconselhamos o saque de R$ {int(valor)-resto},00.'
+            minimo = min([int(i[0].replace('R$ ').replace(',00')) for i in dct_notas.items() if int(i[1]) > 0])
+            mensagem = f'Por favor, escolha um valor múltiplo de {Format_Valor(minimo)} e menor ou igual a {Format_Valor(soma)}.'
         return False, f"Notas disponíveis insuficientes para o saque. {mensagem}"
     Write_Darabase_Notas(dct_notas)
     return True, f"Saque realizado na forma de {', '.join(str_retorno[:-1])} e {str_retorno[-1]}."
@@ -129,22 +142,25 @@ def Deposito(cpf, valor):
     # Verifica o valor do deposito e faz a alteração na base de dados
     check, valor = Check_Valor(valor)
     if check:
-        saldo = Saldo(cpf).replace('R$ ','').replace(',00', '')
-        Write_Database_Clientes(cpf, 'DEPOSITO', valor, int(saldo)+int(valor))
-        return True, f'Deposito de R$ {valor},00 realizado com sucesso.'
+        saldo, centavos = Saldo(cpf).replace('R$ ','').replace('.', '').split(',')
+        Write_Database_Clientes(cpf, 'DEPOSITO', valor, f'{int(saldo)+int(valor)},{centavos}')
+        return True, f'Deposito de {Format_Valor(valor)} realizado com sucesso.'
     return False, f'{valor} não é um valor válido.'
 
 
 def Saque(cpf, valor):
-    saldo = Saldo(cpf).replace('R$ ','').replace(',00', '')
-    mensagem = 'Saldo insuficiente.'
-    # Checa se o saldo é suficente
-    if int(valor) < int(saldo):
-        check, mensagem = Check_Saque(valor)
-        if check:
-            # Altera a base de dados
-            Write_Database_Clientes(cpf, 'SAQUE', valor, int(saldo)-int(valor))
-            return True, mensagem
+    mensagem = 'Valor inválido.'
+    check, valor = Check_Valor(valor)
+    if check:
+        # Checa se o saldo é suficente
+        mensagem = 'Saldo insuficiente.'
+        saldo, centavos = Saldo(cpf).replace('R$ ','').replace('.', '').split(',')
+        if int(valor) <= int(saldo):
+            check, mensagem = Check_Saque(valor)
+            if check:
+                # Altera a base de dados
+                Write_Database_Clientes(cpf, 'SAQUE', valor, f'{int(saldo)+int(valor)},{centavos}')
+                return True, mensagem
     return False, mensagem
 
 def Login(cpf):
@@ -160,7 +176,7 @@ def Login(cpf):
 
 def Cadastro_CPF(cpf):
     # Cadastra novo usuário na base de dados
-    resposta = input('\nCPF não cadastrado. Deseja cadastrar-se? (s/n)')
+    resposta = input('\nCPF não cadastrado. Deseja cadastrar-se? (s/n): ')
     if resposta.lower() == 's'or resposta.lower() == 'sim':
         if Criar_Cliente(cpf):
             print('\nCPF cadastrado com sucesso.')
@@ -177,17 +193,18 @@ def Cadastro_CPF(cpf):
 
 def Menu_Funcoes(opcao):
     opcao = str(int(opcao)) if opcao.isnumeric() else opcao
-    if opcao == '1' or opcao.lower().replace('h', '') == 'um':
+    if opcao.lower().replace('ó', 'o') in ['1', 'hum', 'um', 'deposito', 'depositar']:
         check, cpf = Login(input('Informe o seu CPF: '))
         if check:
-            check, mensagem = Deposito(cpf, input('Informe o valor que deseja depositar:'))
+            check, mensagem = Deposito(cpf, input('Informe o valor que deseja depositar: '))
             print('\n'+mensagem)
-    elif opcao == '2' or opcao.lower() == 'dois':
+    elif opcao.lower() in ['2', 'dois', 'saque', 'sacar']:
         check, cpf = Login(input('Informe o seu CPF: '))
         if check:
-            check, mensagem = Saque(cpf, input('Informe o valor que deseja sacar:'))
+            print(f'\nSaldo atual: {Saldo(cpf)}')
+            check, mensagem = Saque(cpf, input('Informe o valor que deseja sacar: '))
             print('\n'+mensagem)
-    elif opcao == '3' or opcao.lower().replace('ê', 'e') == 'tres':
+    elif opcao.lower().replace(' ', '').replace('+', '') in ['3', 'tres', 'três', 'extratosaldo', 'extrato', 'saldo']:
         check, cpf = Login(input('Informe o seu CPF: '))
         if check:
             mensagem, saldo = Extrato_Saldo(cpf)
