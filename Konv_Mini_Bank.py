@@ -1,5 +1,5 @@
-def Format_Valor(valor):
-    # Retorna valor formatado para exibição ou armazenamento
+def Format_Valor(valor:str)->str:
+    ### Retorna a string valor padronizada.
     if ',' in str(valor):
         valor_format, centavos = valor.split(',')
     else:
@@ -10,13 +10,15 @@ def Format_Valor(valor):
         valor_format = f'{valor_format[:(-3*i)-(i-1)]}.{valor_format[(-3*i)-(i-1):]}'
     return f'R$ {valor_format},{centavos}'
 
-def Read_Database_Notas():
+def Read_Database_Notas()->str:
+    ### Lê o banco de dados das cédulas.
     with open('notas_caixa.bin', mode='r')  as FILE:
         dct_notas = dict(i.replace('\n', '').split(' : ') for i in FILE.readlines())
     return dct_notas
 
 
-def Write_Darabase_Notas(dct_notas):
+def Write_Darabase_Notas(dct_notas:dict)->None:
+    ### Grava as alterações no banco de dados das cédulas.
     try:
         with open('notas_caixa.bin', mode='w')  as FILE:
             FILE.writelines([f'{c[0]} : {c[1]}\n' for c in dct_notas.items()])
@@ -24,20 +26,23 @@ def Write_Darabase_Notas(dct_notas):
         print('Database error', e)
 
 
-def Check_Database_Clientes(cpf):
+def Check_Database_Clientes(cpf:str)->bool:
+    ### Retorna a verificação se o CPF consta ou não no banco de dados.
     clientes = [c.replace('.bin', '') for c in listdir('clientes')]
     if cpf in clientes:
         return True
     return False
 
 
-def Read_Database_Clientes(cpf):
+def Read_Database_Clientes(cpf:str)->list:
+    ### Lê a base de dados e retorna o extrato do cliente.
     with open(join('clientes',cpf+'.bin'), mode='r') as FILE:
         extrato_cliente = [e.replace('\n', '').split(' : ') for e in FILE.readlines()]
     return extrato_cliente
 
 
-def Write_Database_Clientes(cpf, info, valor, saldo):
+def Write_Database_Clientes(cpf:str, info:str, valor:str, saldo:str)->None:
+    ### Escreve uma linha na base de dados do cliente.
     data_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
     try:
         with open(join('clientes',cpf+'.bin'), mode='a') as FILE:
@@ -46,7 +51,9 @@ def Write_Database_Clientes(cpf, info, valor, saldo):
         print('Database error', e)
 
 
-def Check_CPF(cpf_original):
+def Check_CPF(cpf_original:str)->(bool, str):
+    ### Checa se o padrão do CPF e o digito verificador obedecem aos padrões aceitos.
+    ### Retorna a verificação e o CPF padronizado.
     cpf = cpf_original.replace('.', ' ').replace('-', ' ')
     cpf = cpf.split(' ')
     # Checa se o CPF obedece o padrão xxx.xxx.xxx-xx ou padrão numérico.
@@ -62,13 +69,15 @@ def Check_CPF(cpf_original):
     return False, cpf_original
 
 
-def Criar_Cliente(cpf):
+def Criar_Cliente(cpf:str)->bool:
+    ### Cria um novo arquivo para o CPF e retorna a verificação em caso de sucesso. 
     Write_Database_Clientes(cpf, 'Conta criada', '0', '0')
     return True
 
 
-def Check_Valor(valor):
-    # verifica se o valor digitado é numérico, positivo e inteiro
+def Check_Valor(valor:str)->(bool,str):
+    ### Verifica se o valor digitado é numérico, positivo e inteiro.
+    ### Retorna a verificação e o valor padronizado.
     valor_teste = valor.replace('.',' ').replace(',', ' ')
     valor_teste = valor_teste.split(' ')
     if len(valor_teste) != 1:
@@ -91,7 +100,9 @@ def Check_Valor(valor):
     return True, valor_teste
 
 
-def Check_Saque(valor):
+def Check_Saque(valor:str)->(bool, str):
+    ### Verifica se constam cédulas suficientes para o saque.
+    ### Retorna verificação e mensagem.
     dct_notas = Read_Database_Notas()
     resto = int(valor)
     # Calcula a quantidade de cada nota necessária para saque
@@ -125,21 +136,22 @@ def Check_Saque(valor):
     return True, f"Saque realizado na forma de {', '.join(str_retorno[:-1])} e {str_retorno[-1]}."
 
 
-def Saldo(cpf):
-    # Retorna o saldo do cliente
+def Saldo(cpf:str)->str:
+    ### Retorna o saldo do cliente
     saldo = Read_Database_Clientes(cpf)[-1][-1]
     return saldo
 
 
-def Extrato_Saldo(cpf):
-    # Retorna o extrato editado para exibição
+def Extrato_Saldo(cpf:str)->(list, str):
+    ### Retorna o extrato e saldo padronizados.
     extrato_cliente = [f'{e[0]} {e[1]} {e[2]}' for e in Read_Database_Clientes(cpf)]
     saldo = Saldo(cpf)
     return extrato_cliente, saldo
 
 
-def Deposito(cpf, valor):
-    # Verifica o valor do deposito e faz a alteração na base de dados
+def Deposito(cpf:str, valor:str)->(bool, str):
+    ### Envia valor para checagem e envia informações para gravação no extrato.
+    ### Retorna verificações e mensagem.
     check, valor = Check_Valor(valor)
     if check:
         saldo, centavos = Saldo(cpf).replace('R$ ','').replace('.', '').split(',')
@@ -148,7 +160,9 @@ def Deposito(cpf, valor):
     return False, f'{valor} não é um valor válido.'
 
 
-def Saque(cpf, valor):
+def Saque(cpf:str, valor:str)->(bool, str):
+    ### Envia valor para checagem, verifica se é menor que o saldo do cliente e envia informações para gravação no extrato.
+    ### Retorna verificações e mensagem.
     mensagem = 'Valor inválido.'
     check, valor = Check_Valor(valor)
     if check:
@@ -163,8 +177,9 @@ def Saque(cpf, valor):
                 return True, mensagem
     return False, mensagem
 
-def Login(cpf):
-    # Checa se o CPF é valido e cadastrado
+def Login(cpf:str)->(bool, str):
+    ### Checa se o CPF é valido e cadastrado
+    ### Retorna a verificação e o CPF padronizado
     check, cpf = Check_CPF(cpf)
     if check:
         if Check_Database_Clientes(cpf):
@@ -174,8 +189,9 @@ def Login(cpf):
     print('\nCPF inválido')
     return False, cpf
 
-def Cadastro_CPF(cpf):
-    # Cadastra novo usuário na base de dados
+def Cadastro_CPF(cpf:str)->(bool):
+    ### Cadastra novo usuário na base de dados
+    ### Retorna verificação de sucesso.
     resposta = input('\nCPF não cadastrado. Deseja cadastrar-se? (s/n): ')
     if resposta.lower() == 's'or resposta.lower() == 'sim':
         if Criar_Cliente(cpf):
@@ -191,7 +207,8 @@ def Cadastro_CPF(cpf):
         return Cadastro_CPF(cpf)
 
 
-def Menu_Funcoes(opcao):
+def Menu_Funcoes(opcao:str)->None:
+    ### Recebe a opção selecionada pelo usuário, faz a limpeza e interpretação de dados e chama a função desejada.
     opcao = str(int(opcao)) if opcao.isnumeric() else opcao
     if opcao.lower().replace('ó', 'o') in ['1', 'hum', 'um', 'deposito', 'depositar']:
         check, cpf = Login(input('Informe o seu CPF: '))
@@ -217,7 +234,8 @@ def Menu_Funcoes(opcao):
     input('\nTecle ENTER para continuar')
 
 
-def Menu_Principal():
+def Menu_Principal()->None:
+    ### Imprime o Menu e captura a opção escolhida pelo usuário.
     print('\nBem vindo ao Konv Mini Bank!')
     print('Escolha uma das opções a seguir:\n')
     print('1 - Deposito')
